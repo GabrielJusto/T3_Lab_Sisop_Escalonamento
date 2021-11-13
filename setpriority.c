@@ -5,12 +5,31 @@
 #include <string.h>
 #include <linux/sched.h>
 
-volatile int running = 1;
+
+
+char* buffer = NULL;
+int bufferIndex = 0;
+int bufferSize = 0;
+int nThreads = 0;
+int running = 0;
+pthread_mutex_t mutex;
 
 void *run(void *data)
 {
-	while (running);
 
+	/*Garante que todas as threads comecem ao mesmo tempo*/
+	running ++;
+	while(running < nThreads){}
+
+	intptr_t id = (intptr_t) data;
+	while(bufferIndex < bufferSize)
+	{
+		pthread_mutex_lock(&mutex);
+		buffer[bufferIndex] = 'A' + id;
+		bufferIndex ++;
+		pthread_mutex_unlock(&mutex);
+
+	}
 	return 0;
 }
 
@@ -74,21 +93,47 @@ int setpriority(pthread_t *thr, int newpolicy, int newpriority)
 
 int main(int argc, char **argv)
 {
-	int timesleep;
-	pthread_t thr;
+	
+	
 
-	if (argc < 2){
-		printf("usage: ./%s <execution_time>\n\n", argv[0]);
+	if (argc < 5){
+		printf("usage: ./%s <número_de_threads> <tamanho_do_buffer_global_em_kilobytes> <politica> <prioridade>\n\n", argv[0]);
 
 		return 0;
 	}
 
-	timesleep = atoi(argv[1]);
-	pthread_create(&thr, NULL, run, NULL);
-	setpriority(&thr, SCHED_FIFO, 1);
-	sleep(timesleep);
-	running = 0;
-	pthread_join(thr, NULL);
+	pthread_mutex_init(&mutex, NULL);
 
+	
+	int policy;
+	int priority;
+
+
+	nThreads = atoi(argv[1]);
+	bufferSize = atoi(argv[2]) * 1000;
+	policy = atoi(argv[3]);
+	priority = atoi(argv[4 ]);
+
+	buffer = malloc(bufferSize);
+
+	pthread_t thr [nThreads];
+
+	for(int i =0; i<nThreads; i++)
+		pthread_create(&thr[i], NULL, run, (void *)(intptr_t)i);
+
+	for(int i =0; i<nThreads; i++)
+		pthread_join(thr[i], NULL);
+
+
+	printf("Buffer: [");
+
+	for(int i=0; i<bufferSize; i++)
+		printf(" %c", buffer[i]);
+
+	printf(" ]");
+
+	// setpriority(&thr, SCHED_FIFO, 1);
+	// sleep(timesleep);
+	
 	return 0;
 }
